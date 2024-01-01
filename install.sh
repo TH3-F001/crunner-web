@@ -54,12 +54,13 @@ fi
 
 
 #region Install Dependencies
-sudo dnf update -y
 sudo dnf install dnf-plugins-core -y
+sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf update -y
 
 declare -a DEPENDENCIES=("httpd" "mod_ssl" "python3-mod_wsgi" "fail2ban" "openssl" "docker-ce" \
-    "docker-ce-cli" "containerd.io" "docker-buildx-plugin"\
-    "docker-compose-plugin" \
+    "mod_wsgi" "docker-ce-cli" "containerd.io" "docker-buildx-plugin" "docker-compose-plugin" \
+    "python3-pip"
 )
 
 for pkg in "${DEPENDENCIES[@]}"; do
@@ -152,7 +153,8 @@ sudo chmod 644 "$HTTPS_CERT"
 #endregion
 
 #region Set up Flask
-mkdir -p $CRUNNER_ROOT
+mkdir -p "$CRUNNER_ROOT"
+pip3 install Flask
 
 
 # Open Web Server ports in firewall and SELinux
