@@ -1,0 +1,9 @@
+{
+    "WEB_PASS_KEY_FILE": "/etc/crunner/access.key",
+    "WEB_PASS_ENC_FILE": "/var/www/crunner/instance/access.enc",
+    "TRUSTED_CLIENT_CERT_FILE": "/var/www/crunner/instance/trusted_client.crt",
+    "SRV_HTTPS_PRIV_KEY_FILE": "/etc/pki/tls/private/crunner.key",
+    "SRV_HTTPS_CERT_FILE": "/etc/pki/tls/certs/crunner.crt",
+    "CRUNNER_ROOT_DIR": "/var/www/crunner/",
+    "CRUNNER_LIB_DIR": "/usr/local/lib/crunner"
+}

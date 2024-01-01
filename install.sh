@@ -1,75 +1,26 @@
 #!/bin/bash
-# <UDF name="WEB_PASS" label="Web Access Password" example="Enter the web page password" />
 
-
-#region Setup Initial Requirments
-
-# Generate Dummy Password if not running as a stackscript (testing)
-if [ -z "$WEB_PASS" ]; then
-    WEB_PASS="$(echo dummypass | sha256sum | cut -d ' ' -f1)"
+#region Ensure Client Certificate Was Provided
+TRUSTED_CLIENT_CERT="$1"
+if [ -z "$TRUSTED_CLIENT_CERT" ]; then
+    echo "crunner-web requires a trusted client certificate in order to install."
+    exit 1
 fi
+#endregion
 
-# Initialize Log
-DEPLOYMENT_LOG=/var/log/crunner-deploy.log
-sudo echo "" | sudo tee $DEPLOYMENT_LOG > /dev/null
-
-
-#region Environment Variables
-
-#Initialize /etc/profile.d/crunnervars.sh
-VAR_PROFILE=/etc/profile.d/crunnervars.sh
-echo "" | sudo tee $VAR_PROFILE
-sudo chmod 755 $VAR_PROFILE
-
-# Create environment variables
-declare -A ENV_VARS=(
-    ["ROOT_DIR"]="/root/.crunner"
-    ["VINCE"]="/root/.crunner/vince.txt"
-    ["ZOOL"]="/root/.crunner/zool.txt"
-    ["FLASK_ROOT"]="/srv/flask"
-    ["HTTPS_PRIV_KEY"]="/etc/pki/tls/private/crunner.key"
-    ["HTTPS_CERT"]="/etc/pki/tls/certs/crunner.crt"
-    ["CRUNNER_ROOT"]="/var/www/crunner"
-)
-
-# Save Environment Variables to $VAR_PROFILE
-for var in "${!ENV_VARS[@]}"; do
-    if ! grep -Fxq "export $var=${ENV_VARS[$var]}" "$VAR_PROFILE"; then
-        echo "export $var=${ENV_VARS[$var]}" | sudo tee -a "$VAR_PROFILE" > /dev/null
-        export "$var"="${ENV_VARS[$var]}"
+#region Define Functions
+export_json_vars() {
+    local json_file=$1
+    if [[ ! -f "$json_file" ]]; then
+        echo "JSON file not found: $json_file"
+        return 1
     fi
-done
 
+    while IFS="=" read -r key value; do
+        export "$key=$value"
+    done < <(jq -r "to_entries|map(\"\(.key)=\(.value|tostring)\")|.[]" "$json_file")
+}
 
-# Append "source $VAR_PROFILE to .bashrc and profile if it isnt already there"
-if ! grep -Fxq "source $VAR_PROFILE" /home/"$(whoami)"/.bashrc; then
-    echo "source $VAR_PROFILE" >> /home/"$(whoami)"/.bashrc
-fi
-
-# Append "source $VAR_PROFILE to /etc/profile if it isnt already there"
-if ! grep -Fxq "source $VAR_PROFILE" /etc/profile; then
-    echo "source $VAR_PROFILE" >> /etc/profile
-fi
-#endregion
-
-
-#region Install Dependencies
-sudo dnf install dnf-plugins-core -y
-sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
-sudo dnf update -y
-
-declare -a DEPENDENCIES=("httpd" "mod_ssl" "python3-mod_wsgi" "fail2ban" "openssl" "docker-ce" \
-    "mod_wsgi" "docker-ce-cli" "containerd.io" "docker-buildx-plugin" "docker-compose-plugin" \
-    "python3-pip"
-)
-
-for pkg in "${DEPENDENCIES[@]}"; do
-    sudo dnf install -y "$pkg"
-done
-#endregion
-
-
-#region Script Functions
 log() {
     local cmd=("$@")
     if [ ${#cmd[@]} -eq 0 ]; then
@@ -102,63 +53,125 @@ get_public_ip() {
     done
     echo "$pub_ip"
 }
-#encregion
+#endregion
+
+#region Initialize Log File
+DEPLOYMENT_LOG=/var/log/crunner-deploy.log
+sudo echo -e "\t\t[ Installing Crunner-Web Server... ]" | sudo tee $DEPLOYMENT_LOG
 
 #endregion
 
+#region Get Current Directories
+echo -e "\nGetting Current Directories..." | sudo tee -a "$DEPLOYMENT_LOG"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+LIB_SCRIPT_DIR="$SCRIPT_DIR/libraries"
+CRUNNER_SCRIPT_DIR="$SCRIPT_DIR/crunner"
 #endregion
 
+#region Export from paths.json
+echo -e "\nExporting Path Variables From paths.json..." | sudo tee -a "$DEPLOYMENT_LOG"
+log export_json_vars "$CRUNNER_SCRIPT_DIR/instance/config/paths.json"
+#endregion
 
-#region User Setup
+#region Install Dependencies
+echo -e "\nInstalling Dependencies..." | sudo tee -a "$DEPLOYMENT_LOG"
+source "$LIB_SCRIPT_DIR/deps.lib"
+log sudo dnf install dnf-plugins-core -y
+log sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+log sudo dnf update -y
+for pkg in "${DEPENDENCIES[@]}"; do
+    log sudo dnf install "$pkg" -y
+done
+#endregion
 
-# Create Flask User
-# ToDo: configure the flask systemd service to run using the flask user 
-echo -e "Creating the Flask User..." | sudo tee -a $DEPLOYMENT_LOG  
+#region Create Flask User
+echo -e "\nCreating Flask User..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo groupadd flask 
-log sudo useradd -m -d /srv/flask -g flask flask
-log sudo chown flask:flask /srv/flask
-log sudo chmod 750 /srv/flask 
-log sudo chmod g+s /srv/flask
+log sudo useradd -m -d "$CRUNNER_ROOT_DIR" -g flask flask
+log sudo chown flask:flask "$CRUNNER_ROOT_DIR"
+log sudo chmod 750 "$CRUNNER_ROOT_DIR" 
+log sudo chmod g+s "$CRUNNER_ROOT_DIR"
 #endregion
 
+#region Put Files to their proper places
+echo -e "\nCopying Project Files..." | sudo tee -a "$DEPLOYMENT_LOG"
 
-#region Encrypt User Supplied Password
+# Move uninstall.sh to /usr/local/bin
+echo "Installing crunner-uninstall..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo cp "$SCRIPT_DIR/uninstall.sh" /usr/local/bin/crunner-uninstall
+log sudo chmod 751 /usr/local/bin/crunner-uninstall
+
+# Move libraries to /usr/local/lib/crunner/
+echo "Copying Library Files to /usr/local/lib/crunner..." | sudo tee -a "$DEPLOYMENT_LOG"
+if [ ! -z "$CRUNNER_LIB_DIR" ]; then
+    log sudo mkdir -p "$CRUNNER_LIB_DIR"
+    log sudo cp -r "$LIB_SCRIPT_DIR"/* "$CRUNNER_LIB_DIR"
+    log sudo chown -R :flask "$CRUNNER_LIB_DIR"/*
+    log sudo chmod -R 644 "$CRUNNER_LIB_DIR"/*
+else
+    echo "$CRUNNER_LIB_DIR doesnt exist!"
+    read -p "paused" poop
+    echo "$poop"
+fi
 
 
-# Create required directories
-log sudo mkdir -p "$FLASK_ROOT"/secure
-log sudo mkdir -p "$ROOT_DIR"
-log openssl rand -base64 32 | sudo tee $VINCE > /dev/null
-log sudo chmod 650 $VINCE
-log sudo chown :flask $VINCE
+# Move crunner files to /var/www/crunner
+echo "Building Server Directory..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo cp -r "$CRUNNER_SCRIPT_DIR"/* "$CRUNNER_ROOT_DIR"
+log sudo chmod -R 750 "$CRUNNER_ROOT_DIR"/*
+log sudo chown -R flask:flask "$CRUNNER_ROOT_DIR"/*
 
-# Encrypt user supplied password hash
-echo "$WEB_PASS" | sudo openssl enc -aes-256-cbc -salt -pbkdf2 -iter 10000 -pass file:"$VINCE" -out "$ZOOL"
-log sudo chmod 650 $ZOOL
-log sudo chown :flask $ZOOL
+# Create /etc/crunner
+echo "Creating /etc/crunner..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo mkdir -p /etc/crunner
+log sudo chown -R flask:flask /etc/crunner
+log sudo chmod 700 /etc/crunner
 #endregion
 
+#region Set up PKI
+echo -e "\nSetting Up PKI Files..." | sudo tee -a $DEPLOYMENT_LOG
 
-#region Set Up Web App
+# Copy the trusted client certificate to /var/www/crunner/instance
+echo "Placing trusted client certificate into $TRUSTED_CLIENT_CERT_FILE..." | sudo tee -a $DEPLOYMENT_LOG
+echo "$TRUSTED_CLIENT_CERT" | sudo tee "$TRUSTED_CLIENT_CERT_FILE" >/dev/null
 
-
-
-#region Generate TLS key and self-signed certificate
+# Get Public IP address
+echo "Getting public IP address..." | sudo tee -a $DEPLOYMENT_LOG
 PUB_IP=$(get_public_ip)
-sudo openssl ecparam -genkey -name secp384r1 -out "$HTTPS_PRIV_KEY"
-sudo openssl req -new -x509 -sha256 -key "$HTTPS_PRIV_KEY" -out "$HTTPS_CERT" -days 365\
-    -subj "/C=US/O=Cloud-Runner/CN=$PUB_IP"
-sudo chmod 600 "$HTTPS_PRIV_KEY"
-sudo chmod 644 "$HTTPS_CERT"
+echo "Public IP address is $PUB_IP." | sudo tee -a $DEPLOYMENT_LOG
+
+# Generate Web Server PKI
+    # Generate Private Key
+echo "Generating web server key..." | sudo tee -a "$DEPLOYMENT_LOG"
+sudo openssl ecparam -genkey -name secp521r1 -out "$SRV_HTTPS_PRIV_KEY_FILE" 2>>"$DEPLOYMENT_LOG"
+if [ $? -ne 0 ]; then
+    echo "Error generating private key" | sudo tee -a "$DEPLOYMENT_LOG"
+fi
+
+    # Generate Certificate
+echo "Generating web server certificate..." | sudo tee -a "$DEPLOYMENT_LOG"
+sudo openssl req -new -x509 -sha512 -key "$SRV_HTTPS_PRIV_KEY_FILE" -out "$SRV_HTTPS_CERT_FILE" -days 365 \
+    -subj "/C=US/O=Cloud-Runner/CN=$PUB_IP" 2>>"$DEPLOYMENT_LOG"
+if [ $? -ne 0 ]; then
+    echo "Error generating certificate" | sudo tee -a "$DEPLOYMENT_LOG"
+fi
+
+# Give flask ownership of cert and priv key
+echo "Giving flask ownership of web PKI files..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo chown flask:flask "$SRV_HTTPS_PRIV_KEY_FILE"
+log sudo chown flask:flask "$SRV_HTTPS_CERT_FILE"
+log sudo chown flask:flask "$TRUSTED_CLIENT_CERT_FILE"
+
+# Restrict permissions of cert and priv key
+echo "Restricting permissions for web PKI files" | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo chmod 600 "$SRV_HTTPS_PRIV_KEY_FILE"
+log sudo chmod 644 "$SRV_HTTPS_CERT_FILE"
+log sudo chmod 600 "$TRUSTED_CLIENT_CERT_FILE"
 #endregion
 
-#region Set up Flask
-mkdir -p "$CRUNNER_ROOT"
-pip3 install Flask
-
-
-# Open Web Server ports in firewall and SELinux
-sudo fire
+#region Generate Web-Access Encryption Key
+echo -e "\nGenerating Web-Access Encryption Key..." | sudo tee -a "$DEPLOYMENT_LOG"
+openssl rand -base64 47 | sudo tee "$WEB_PASS_KEY_FILE"
+log sudo chown flask:flask "$WEB_PASS_KEY_FILE"
+log sudo chmod 400 "$WEB_PASS_KEY_FILE"
 #endregion
-
- 
