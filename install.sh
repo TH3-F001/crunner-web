@@ -32,8 +32,24 @@ log() {
     local cmd_str="${cmd[@]}"
     printf -v joined_cmd '%q ' "${cmd[@]}"
 
-    echo "\$log> $joined_cmd" | sudo tee -a "$DEPLOYMENT_LOG" > /dev/null
+    echo -e "\t\$log> $joined_cmd" | sudo tee -a "$DEPLOYMENT_LOG" > /dev/null
     eval "$cmd_str" 2>&1 | sudo tee -a "$DEPLOYMENT_LOG" || echo "[No_Output]" | sudo tee -a "$DEPLOYMENT_LOG" > /dev/null
+    if [ $? -ne 0 ]; then
+        echo -e "\tFailed" | sudo tee -a "$DEPLOYMENT_LOG" > /dev/null
+    else 
+        echo -e "\tSuccess" | sudo tee -a "$DEPLOYMENT_LOG" > /dev/null
+    fi
+
+}
+
+is_valid_ip() {
+    local ip=$1
+
+    if ping -c 1 -W 1 "$ip" &> /dev/null; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 get_public_ip() {
@@ -70,7 +86,10 @@ CRUNNER_SCRIPT_DIR="$SCRIPT_DIR/crunner"
 
 #region Export from paths.json
 echo -e "\nExporting Path Variables From paths.json..." | sudo tee -a "$DEPLOYMENT_LOG"
-log export_json_vars "$CRUNNER_SCRIPT_DIR/instance/config/paths.json"
+export_json_vars "$CRUNNER_SCRIPT_DIR/instance/config/paths.json"
+jq -r 'to_entries[] | "\(.key): \(.value)"' "$CRUNNER_SCRIPT_DIR/instance/config/paths.json" | while IFS=":" read -r key value; do
+    echo "$key: $value" | sudo tee -a "$DEPLOYMENT_LOG"
+done
 #endregion
 
 #region Install Dependencies
@@ -93,19 +112,19 @@ log sudo chmod 750 "$CRUNNER_ROOT_DIR"
 log sudo chmod g+s "$CRUNNER_ROOT_DIR"
 #endregion
 
-#region Put Files to their proper places
+#region Put Files into their proper places
 echo -e "\nCopying Project Files..." | sudo tee -a "$DEPLOYMENT_LOG"
 
 # Move uninstall.sh to /usr/local/bin
 echo "Installing crunner-uninstall..." | sudo tee -a "$DEPLOYMENT_LOG"
-log sudo cp "$SCRIPT_DIR/uninstall.sh" /usr/local/bin/crunner-uninstall
+log sudo cp -v "$SCRIPT_DIR/uninstall.sh" /usr/local/bin/crunner-uninstall
 log sudo chmod 751 /usr/local/bin/crunner-uninstall
 
 # Move libraries to /usr/local/lib/crunner/
 echo "Copying Library Files to /usr/local/lib/crunner..." | sudo tee -a "$DEPLOYMENT_LOG"
 if [ ! -z "$CRUNNER_LIB_DIR" ]; then
     log sudo mkdir -p "$CRUNNER_LIB_DIR"
-    log sudo cp -r "$LIB_SCRIPT_DIR"/* "$CRUNNER_LIB_DIR"
+    log sudo cp -v -r "$LIB_SCRIPT_DIR"/* "$CRUNNER_LIB_DIR"
     log sudo chown -R :flask "$CRUNNER_LIB_DIR"/*
     log sudo chmod -R 644 "$CRUNNER_LIB_DIR"/*
 else
@@ -117,7 +136,7 @@ fi
 
 # Move crunner files to /var/www/crunner
 echo "Building Server Directory..." | sudo tee -a "$DEPLOYMENT_LOG"
-log sudo cp -r "$CRUNNER_SCRIPT_DIR"/* "$CRUNNER_ROOT_DIR"
+log sudo cp -v -r "$CRUNNER_SCRIPT_DIR"/* "$CRUNNER_ROOT_DIR"
 log sudo chmod -R 750 "$CRUNNER_ROOT_DIR"/*
 log sudo chown -R flask:flask "$CRUNNER_ROOT_DIR"/*
 
@@ -171,7 +190,42 @@ log sudo chmod 600 "$TRUSTED_CLIENT_CERT_FILE"
 
 #region Generate Web-Access Encryption Key
 echo -e "\nGenerating Web-Access Encryption Key..." | sudo tee -a "$DEPLOYMENT_LOG"
-openssl rand -base64 47 | sudo tee "$WEB_PASS_KEY_FILE"
+openssl rand -base64 47 | sudo tee "$WEB_PASS_KEY_FILE" >/dev/null
 log sudo chown flask:flask "$WEB_PASS_KEY_FILE"
 log sudo chmod 400 "$WEB_PASS_KEY_FILE"
+#endregion
+
+#region Configure Firewall
+echo -e "\nConfiguring Firewall and SELinux Rules..."
+
+# Enable firewalld
+echo  "Enabling Firwalld..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo systemctl start firewalld
+log sudo systemctl enable firewalld
+
+# Default Deny All Incoming Connections
+echo "Denying all default connections by default..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo firewall-cmd --set-default-zone=drop
+
+#region Open Server Ports
+echo "Opening Server Ports..." | sudo tee -a "$DEPLOYMENT_LOG"
+
+# Open development server on port 5000 (DEVELOPMENT ONLY!)
+echo -e "Opening inbound requests to port 5000 (Flask Development Server)..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo firewall-cmd --zone=public --add-port=5000/tcp --permanent
+
+# Open Apache HTTPS server on port 443
+echo -e "Opening inbound requests to port 443 (Apache HTTPS Server)..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo firewall-cmd --zone=public --add-service=https --permanent
+
+# Open SSH server on port 22
+echo -e "Opening inbound requests to port 22 (OpenSSH Server)..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo firewall-cmd --zone=public --add-service=ssh --permanent
+#endregion
+
+# Reload Firewall 
+echo -e "Reloading Firewall..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo firewall-cmd --reload
+
+
 #endregion

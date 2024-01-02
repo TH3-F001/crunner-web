@@ -1,2 +1,19 @@
 #!/bin/bash
 
+declare -a DEPENDENCIES=(\
+    "httpd" \
+    "mod_ssl" \
+    "python3-mod_wsgi" \
+    "fail2ban" \
+    "openssl" \
+    "docker-ce" \
+    "mod_wsgi" \
+    "docker-ce-cli" \
+    "containerd.io" \
+    "docker-buildx-plugin" \
+    "docker-compose-plugin" \
+    "python3-pip" \
+    "jq" \
+    "nc" \
+    "nmap" \
+)
