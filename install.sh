@@ -104,6 +104,7 @@ done
 #endregion
 
 #region Create Flask User
+#ToDo Lock down permissions more?
 echo -e "\nCreating Flask User..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo groupadd flask 
 log sudo useradd -m -d "$CRUNNER_ROOT_DIR" -g flask flask
@@ -160,14 +161,14 @@ PUB_IP=$(get_public_ip)
 echo "Public IP address is $PUB_IP." | sudo tee -a $DEPLOYMENT_LOG
 
 # Generate Web Server PKI
-    # Generate Private Key
+# Generate Private Key
 echo "Generating web server key..." | sudo tee -a "$DEPLOYMENT_LOG"
 sudo openssl ecparam -genkey -name secp521r1 -out "$SRV_HTTPS_PRIV_KEY_FILE" 2>>"$DEPLOYMENT_LOG"
 if [ $? -ne 0 ]; then
     echo "Error generating private key" | sudo tee -a "$DEPLOYMENT_LOG"
 fi
 
-    # Generate Certificate
+# Generate Certificate
 echo "Generating web server certificate..." | sudo tee -a "$DEPLOYMENT_LOG"
 sudo openssl req -new -x509 -sha512 -key "$SRV_HTTPS_PRIV_KEY_FILE" -out "$SRV_HTTPS_CERT_FILE" -days 365 \
     -subj "/C=US/O=Cloud-Runner/CN=$PUB_IP" 2>>"$DEPLOYMENT_LOG"
@@ -226,6 +227,4 @@ log sudo firewall-cmd --zone=public --add-service=ssh --permanent
 # Reload Firewall 
 echo -e "Reloading Firewall..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo firewall-cmd --reload
-
-
 #endregion
