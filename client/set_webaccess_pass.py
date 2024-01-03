@@ -22,6 +22,10 @@ def port_is_open(host, port=443, timeout=3):
             return True
     except socket.error:
         return False
+
+def request_enrollment(server, cert_path):
+    url = f"https://{server}/enroll"
+    response = requests.get(url, verify=cert_path)
 #endregion
 
 def set_webaccess_password(web_args: dict):

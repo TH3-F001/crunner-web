@@ -74,6 +74,7 @@ get_public_ip() {
 #region Initialize Log File
 DEPLOYMENT_LOG=/var/log/crunner-deploy.log
 sudo echo -e "\t\t[ Installing Crunner-Web Server... ]" | sudo tee $DEPLOYMENT_LOG
+sudo chmod 777 $DEPLOYMENT_LOG
 
 #endregion
 
@@ -111,6 +112,7 @@ log sudo useradd -m -d "$CRUNNER_ROOT_DIR" -g flask flask
 log sudo chown flask:flask "$CRUNNER_ROOT_DIR"
 log sudo chmod 750 "$CRUNNER_ROOT_DIR" 
 log sudo chmod g+s "$CRUNNER_ROOT_DIR"
+sudo rm -rf "$CRUNNER_ROOT_DIR/*"
 #endregion
 
 #region Put Files into their proper places
@@ -228,3 +230,13 @@ log sudo firewall-cmd --zone=public --add-service=ssh --permanent
 echo -e "Reloading Firewall..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo firewall-cmd --reload
 #endregion
+
+#region create a virtual environment for flask
+echo -e "Creating Virtual Environment..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo -u flask python3 -m venv "$CRUNNER_ROOT_DIR"/venv
+log sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/python3 -m pip install --upgrade pip
+sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/pip install Flask
+
+#region Lock Deployment Log
+echo -e "Locking Deployment Log..." | tee -a "$DEPLOYMENT_LOG"
+sudo chmod 644 $DEPLOYMENT_LOG
