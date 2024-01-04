@@ -154,8 +154,8 @@ log sudo chmod 700 /etc/crunner
 echo -e "\nSetting Up PKI Files..." | sudo tee -a $DEPLOYMENT_LOG
 
 # Copy the trusted client certificate to /var/www/crunner/instance
-echo "Placing trusted client certificate into $TRUSTED_CLIENT_CERT_FILE..." | sudo tee -a $DEPLOYMENT_LOG
-echo "$TRUSTED_CLIENT_CERT" | sudo tee "$TRUSTED_CLIENT_CERT_FILE" >/dev/null
+echo "Placing trusted client certificate into $CLT_TRUSTED_CERT_FILE..." | sudo tee -a $DEPLOYMENT_LOG
+echo "$TRUSTED_CLIENT_CERT" | sudo tee "$CLT_TRUSTED_CERT_FILE" >/dev/null
 
 # Get Public IP address
 echo "Getting public IP address..." | sudo tee -a $DEPLOYMENT_LOG
@@ -182,13 +182,13 @@ fi
 echo "Giving flask ownership of web PKI files..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo chown flask:flask "$SRV_HTTPS_PRIV_KEY_FILE"
 log sudo chown flask:flask "$SRV_HTTPS_CERT_FILE"
-log sudo chown flask:flask "$TRUSTED_CLIENT_CERT_FILE"
+log sudo chown flask:flask "$CLT_TRUSTED_CERT_FILE"
 
 # Restrict permissions of cert and priv key
 echo "Restricting permissions for web PKI files" | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo chmod 600 "$SRV_HTTPS_PRIV_KEY_FILE"
 log sudo chmod 644 "$SRV_HTTPS_CERT_FILE"
-log sudo chmod 600 "$TRUSTED_CLIENT_CERT_FILE"
+log sudo chmod 600 "$CLT_TRUSTED_CERT_FILE"
 #endregion
 
 #region Generate Web-Access Encryption Key
