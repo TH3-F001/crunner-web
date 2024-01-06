@@ -1,11 +1,12 @@
 import json
+import os
 from flask import Flask, jsonify
 from urllib.parse import unquote
 
 
 def load_json_file(file_path):
     try:
-        with open(file_path, 'r') as file:
+        with open(file_path, 'r') as file: 
             return json.load(file)
     except FileNotFoundError:
         print(f"File Not Found: {file_path}")
@@ -41,36 +42,64 @@ def client_has_trusted_cert(trusted_cert):
     return False
 
 
-def password_is_set():
-    pass
+def password_is_set(password_file):
+    try:
+        with open(file_path, 'r') as file:
+            # Read the first byte
+            return file.read(1) != ''
+    except FileNotFoundError:
+        print(f"File Not Found: {password_file}")
+        return False
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return False
 
 
-def verify_client():
-    pass
+def verify_client(trusted_cert, password_file):
+    if not client_has_trusted_cert(trusted_cert):
+        return False
+    if not password_is_set(password_file):
+        return False
+    return True
+    
+#endregion
 
+#region Initialize the web app
 app = Flask(__name__)
 paths_file = "/var/www/crunner/instance/config/paths.json"
 paths = load_json_file(paths_file)
 trusted_client_cert_file = paths['CLT_TRUSTED_CERT_FILE']
 trusted_cert = get_file_contents(trusted_client_cert_file)
+#endregion
+
 
 @app.route('/')
 def home():
-    return jsonify(message="Home Page")
+    if verify_client:
+        return jsonify(message="Home Page")
+    else: 
+        return jsonify(message="NO SOUP FOR YOU!")
 
 @app.route('/enroll', methods=['GET', 'POST'])
 def enroll():
-    # Placeholder for enrollment logic
-    return jsonify(message="Enrollment Endpoint")
+    if client_has_trusted_cert(trusted_cert):
+        return jsonify(message="Lets get that password from you!")
+    else:
+        return jsonify(message="NO SOUP FOR YOU!")
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Placeholder for login logic
-    return jsonify(message="Login Endpoint")
+    if verify_client:
+        return jsonify(message="Home Page")
+    else: 
+        return jsonify(message="NO SOUP FOR YOU!")
 
 @app.route('/test', methods=['GET'])
 def test():
-    return jsonify(message="Test Endpoint")
+    if verify_client:
+        return jsonify(message="Home Page")
+    else: 
+        return jsonify(message="NO SOUP FOR YOU!")
 
 if __name__ == '__main__':
     app.run(debug=True)

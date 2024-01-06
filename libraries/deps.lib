@@ -3,7 +3,6 @@
 declare -a DEPENDENCIES=(\
     "httpd" \
     "mod_ssl" \
-    "python3-mod_wsgi" \
     "fail2ban" \
     "openssl" \
     "docker-ce" \

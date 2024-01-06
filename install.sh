@@ -83,6 +83,7 @@ echo -e "\nGetting Current Directories..." | sudo tee -a "$DEPLOYMENT_LOG"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LIB_SCRIPT_DIR="$SCRIPT_DIR/libraries"
 CRUNNER_SCRIPT_DIR="$SCRIPT_DIR/crunner"
+APACHE_SCRIPT_DIR="$SCRIPT_DIR/apache"
 #endregion
 
 #region Export from paths.json
@@ -138,16 +139,21 @@ fi
 
 
 # Move crunner files to /var/www/crunner
-echo "Building Server Directory..." | sudo tee -a "$DEPLOYMENT_LOG"
+echo "Building server directory..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo cp -v -r "$CRUNNER_SCRIPT_DIR"/* "$CRUNNER_ROOT_DIR"
 log sudo chmod -R 750 "$CRUNNER_ROOT_DIR"/*
 log sudo chown -R flask:flask "$CRUNNER_ROOT_DIR"/*
+
+# Move Apache configs to their proper places
+echo "Adding Apache configuration files" | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo cp -v -r "$APACHE_SCRIPT_DIR/ssl.conf" /etc/httpd/conf.d/ssl.conf
 
 # Create /etc/crunner
 echo "Creating /etc/crunner..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo mkdir -p /etc/crunner
 log sudo chown -R flask:flask /etc/crunner
 log sudo chmod 700 /etc/crunner
+
 #endregion
 
 #region Set up PKI
@@ -231,11 +237,22 @@ echo -e "Reloading Firewall..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo firewall-cmd --reload
 #endregion
 
-#region create a virtual environment for flask
-echo -e "Creating Virtual Environment..." | sudo tee -a "$DEPLOYMENT_LOG"
+#region create a virtual environment for flask and install python dependencies
+echo -e "\nCreating Virtual Environment..." | sudo tee -a "$DEPLOYMENT_LOG"
 log sudo -u flask python3 -m venv "$CRUNNER_ROOT_DIR"/venv
 log sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/python3 -m pip install --upgrade pip
 sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/pip install Flask
+sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/pip install mod_wsgi
+#endregion
+
+#region Enable Web Services
+echo -e "\nEnabling Web Services..." | sudo tee -a "$DEPLOYMENT_LOG"
+
+# Enable Apache web server
+echo -e "\nEnabling Apache web server..." | sudo tee -a "$DEPLOYMENT_LOG"
+log sudo systemctl enable httpd
+log sudo systemctl start httpd
+#endregion
 
 #region Lock Deployment Log
 echo -e "Locking Deployment Log..." | tee -a "$DEPLOYMENT_LOG"
