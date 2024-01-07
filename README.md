@@ -18,6 +18,5 @@ The idea behind Crunner is to offload intensive tasks (particularly network inte
 - Secure password handling with salted sha256 hashes, nonces, and PBKDF2-based at-rest encryption.
 - Apache for centralized security configuration and management
 - Python Flask for handling:
-  - Secure Authentication with encrypted JWTs
   - Communication between the web API, and docker container(s) running user supplied scripts
   - Initiation of the shell script that generates docker container and begins running and logging script

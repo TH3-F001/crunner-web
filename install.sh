@@ -146,7 +146,14 @@ log sudo chown -R flask:flask "$CRUNNER_ROOT_DIR"/*
 
 # Move Apache configs to their proper places
 echo "Adding Apache configuration files" | sudo tee -a "$DEPLOYMENT_LOG"
-log sudo cp -v -r "$APACHE_SCRIPT_DIR/ssl.conf" /etc/httpd/conf.d/ssl.conf
+
+# /etc/httpd/conf.d/ssl.conf
+log sudo cp -v /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.bak
+log sudo cp -v "$APACHE_SCRIPT_DIR/ssl.conf" /etc/httpd/conf.d/ssl.conf
+
+# /etc/httpd/conf/httpd.conf
+log sudo cp -v /etc/httpd/conf/httpd.conf /etc/httpd/conf/httpd.conf.bak
+log sudo cp -v "$APACHE_SCRIPT_DIR/httpd.conf" /etc/httpd/conf/httpd.conf
 
 # Create /etc/crunner
 echo "Creating /etc/crunner..." | sudo tee -a "$DEPLOYMENT_LOG"
