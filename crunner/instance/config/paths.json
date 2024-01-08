@@ -3,10 +3,11 @@
     "WEB_PASS_ENC_FILE": "/var/www/crunner/instance/access/web_pass.enc",
     "WEB_TOKEN_KEY_FILE": "/etc/crunner/web_token.key",
     "WEB_TOKEN_ENC_FILE": "/var/www/crunner/instance/access/web_token.enc",
-    "CLT_TRUSTED_CERT_FILE": "/etc/crunner/trusted_client.crt",
+    "CLT_TRUSTED_CERT_FILE": "/var/www/crunner/instance/trusted_client.crt",
     "SRV_PASS_TX_PUB_KEY_FILE": "/etc/pki/tls/dh-pass.pub",
     "SRV_PASS_TX_PRIV_KEY_FILE": "/etc/pki/tls/private/dh-pass.key",
     "SRV_HTTPS_PRIV_KEY_FILE": "/etc/pki/tls/private/crunner.key",
+    "SRV_HTTPS_CSR_FILE": "/etc/pki/tls/certs/crunner.csr",
     "SRV_HTTPS_CERT_FILE": "/etc/pki/tls/certs/crunner.crt",
     "CRUNNER_ROOT_DIR": "/var/www/crunner",
     "CRUNNER_LIB_DIR": "/usr/local/lib/crunner"

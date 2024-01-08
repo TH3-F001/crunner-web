@@ -1,9 +1,9 @@
 import json
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from urllib.parse import unquote
 
-
+#region Define Functions
 def load_json_file(file_path):
     try:
         with open(file_path, 'r') as file: 
@@ -35,6 +35,8 @@ def get_file_contents(file_path, ftype='string'):
 
 def client_has_trusted_cert(trusted_cert):
     client_cert_encoded = request.headers.get('X-Client-Certificate')
+    print(f"Trusted Cert: {trusted_cert}")
+    print(f"Supplied Cert: {client_cert_encoded}")
     if client_cert_encoded:
         client_cert = unquote(client_cert_encoded)  # URL-decode the certificate
         if client_cert == trusted_cert:
@@ -44,7 +46,7 @@ def client_has_trusted_cert(trusted_cert):
 
 def password_is_set(password_file):
     try:
-        with open(file_path, 'r') as file:
+        with open(password_file, 'r') as file:
             # Read the first byte
             return file.read(1) != ''
     except FileNotFoundError:
@@ -61,21 +63,22 @@ def verify_client(trusted_cert, password_file):
     if not password_is_set(password_file):
         return False
     return True
-    
 #endregion
 
 #region Initialize the web app
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 paths_file = "/var/www/crunner/instance/config/paths.json"
 paths = load_json_file(paths_file)
 trusted_client_cert_file = paths['CLT_TRUSTED_CERT_FILE']
 trusted_cert = get_file_contents(trusted_client_cert_file)
+password_file = paths['WEB_PASS_ENC_FILE']
 #endregion
 
 
 @app.route('/')
 def home():
-    if verify_client:
+    if verify_client(trusted_cert, password_file):
         return jsonify(message="Home Page")
     else: 
         return jsonify(message="NO SOUP FOR YOU!")
@@ -89,14 +92,14 @@ def enroll():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if verify_client:
+    if verify_client(trusted_cert, password_file):
         return jsonify(message="Home Page")
     else: 
         return jsonify(message="NO SOUP FOR YOU!")
 
 @app.route('/test', methods=['GET'])
 def test():
-    if verify_client:
+    if verify_client(trusted_cert, password_file):
         return jsonify(message="Home Page")
     else: 
         return jsonify(message="NO SOUP FOR YOU!")

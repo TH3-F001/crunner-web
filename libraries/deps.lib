@@ -2,7 +2,10 @@
 
 declare -a DEPENDENCIES=(\
     "httpd" \
+    "httpd-devel"\
+    "python3-devel"\
     "mod_ssl" \
+    "acl" \
     "fail2ban" \
     "openssl" \
     "docker-ce" \
