@@ -31,17 +31,53 @@ def get_file_contents(file_path, ftype='string'):
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
-    
+
+
+def get_cert_from_file(cert_file_path):
+    try:
+        with open(cert_file_path, 'r') as file:
+            # Read the certificate file and remove the header, footer, and newlines
+            cert_content = ''.join([line.strip() for line in file.readlines()
+                                    if '-----BEGIN CERTIFICATE-----' not in line and
+                                    '-----END CERTIFICATE-----' not in line])
+            # URL-encode the certificate content
+            cert_content_encoded = cert_content.replace('\n', '%0A')
+            return cert_content_encoded
+    except FileNotFoundError:
+        print(f"File Not Found: {cert_file_path}")
+        return None
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+def get_client_provided_cert():
+    client_cert_encoded = request.headers.get('X-Client-Certificate')
+    if client_cert_encoded:
+        client_cert = client_cert_encoded.split('- ')[1].split
+        return client_cert
+    else:
+        return None
+        
 
 def client_has_trusted_cert(trusted_cert):
     client_cert_encoded = request.headers.get('X-Client-Certificate')
-    print(f"Trusted Cert: {trusted_cert}")
-    print(f"Supplied Cert: {client_cert_encoded}")
+    response_data = {
+        "Trusted Cert": trusted_cert,
+        "Supplied Cert": client_cert_encoded
+    }
+    print(response_data)  # for server-side logging
+
     if client_cert_encoded:
         client_cert = unquote(client_cert_encoded)  # URL-decode the certificate
         if client_cert == trusted_cert:
-            return True
-    return False
+            response_data["Match"] = True
+            return jsonify(response_data), 200  # Certificate matches
+        else:
+            response_data["Match"] = False
+            return jsonify(response_data), 403  # Certificate does not match
+    else:
+        return jsonify({"Error": "No client certificate provided"}), 401  # No certificate provided
+
 
 
 def password_is_set(password_file):
@@ -85,10 +121,9 @@ def home():
 
 @app.route('/enroll', methods=['GET', 'POST'])
 def enroll():
-    if client_has_trusted_cert(trusted_cert):
-        return jsonify(message="Lets get that password from you!")
-    else:
-        return jsonify(message="NO SOUP FOR YOU!")
+    cert = get_client_provided_cert()
+    if cert:
+        return jsonify(message=cert)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

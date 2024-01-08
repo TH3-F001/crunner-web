@@ -214,10 +214,13 @@ log sudo chmod 700 /etc/crunner
 #region Set up PKI
 echo -e "\nSetting Up PKI Files..." | tee -a $DEPLOYMENT_LOG
 
-# Copy the trusted client certificate to /var/www/crunner/instance
+# Copy the trusted client certificate to /var/www/crunner/instance as a single line cert
 echo "Placing trusted client certificate into $CLT_TRUSTED_CERT_FILE..." | tee -a $DEPLOYMENT_LOG
-echo "$TRUSTED_CLIENT_CERT" | sudo tee "$CLT_TRUSTED_CERT_FILE" >/dev/null
-
+sed -ne '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' "$TRUSTED_CLIENT_CERT" | \
+    sed '/BEGIN CERTIFICATE/d;/END CERTIFICATE/d' | \
+    tr -d '\n' | \
+    sudo tee "$CLT_TRUSTED_CERT_FILE"
+# log sudo cp -v "$TRUSTED_CLIENT_CERT" "$CLT_TRUSTED_CERT_FILE"
 # Generate Web Server PKI
 
 # Generate Private Key and certificate
@@ -320,7 +323,7 @@ sudo chcon -R -t httpd_sys_script_exec_t /var/www/crunner
 echo -e "\nSyncing time and date..." | tee -a "$DEPLOYMENT_LOG"
 sudo systemctl enable --now systemd-timesyncd
 sudo timedatectl set-ntp true
-
+#endregion
 
 #region Enable Web Services
 echo -e "\nEnabling Web Services..." | tee -a "$DEPLOYMENT_LOG"
@@ -343,4 +346,4 @@ echo -e "Locking Deployment Log..." | tee -a "$DEPLOYMENT_LOG"
 sudo chmod 644 $DEPLOYMENT_LOG
 #endregion
 
-# crunner/install.sh "$(cat crunner/test_assets/trusted_test.crt)"
+# crunner/install.sh crunner/test_assets/trusted_test.crt
