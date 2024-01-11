@@ -216,10 +216,7 @@ echo -e "\nSetting Up PKI Files..." | tee -a $DEPLOYMENT_LOG
 
 # Copy the trusted client certificate to /var/www/crunner/instance as a single line cert
 echo "Placing trusted client certificate into $CLT_TRUSTED_CERT_FILE..." | tee -a $DEPLOYMENT_LOG
-sed -ne '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' "$TRUSTED_CLIENT_CERT" | \
-    sed '/BEGIN CERTIFICATE/d;/END CERTIFICATE/d' | \
-    tr -d '\n' | \
-    sudo tee "$CLT_TRUSTED_CERT_FILE"
+cat "$TRUSTED_CLIENT_CERT" | tr -d '\n' | sudo tee "$CLT_TRUSTED_CERT_FILE"
 # log sudo cp -v "$TRUSTED_CLIENT_CERT" "$CLT_TRUSTED_CERT_FILE"
 # Generate Web Server PKI
 
@@ -310,6 +307,7 @@ log sudo -u flask python3 -m venv "$CRUNNER_ROOT_DIR"/venv
 log sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/python3 -m pip install --upgrade pip
 log sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/pip install Flask
 log sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/pip install mod_wsgi
+log sudo -u flask "$CRUNNER_ROOT_DIR"/venv/bin/pip install flask-login
 
 # Give apache and flask the proper permissions to the virtual environment
 echo -e "Giving the virtual environment the proper permissions..." | tee -a "$DEPLOYMENT_LOG"
